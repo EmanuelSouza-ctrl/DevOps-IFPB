@@ -1,0 +1,100 @@
+---
+- name: Configurar servidor web
+  hosts: app
+  become: true
+
+  tasks:
+    - name: Instalar Apache2 e autofs
+      ansible.builtin.apt:
+        name:
+          - apache2
+          - autofs
+        state: present
+        update_cache: true
+
+    - name: Criar pagina inicial do projeto
+      ansible.builtin.copy:
+        dest: /var/www/html/index.html
+        owner: root
+        group: root
+        mode: '0644'
+        content: |
+          <!DOCTYPE html>
+          <html lang="pt-BR">
+          <head>
+              <meta charset="UTF-8">
+              <meta name="viewport" content="width=device-width, initial-scale=1.0">
+              <title>Projeto DevOps - IFPB</title>
+              <style>
+                  body {
+                      font-family: Arial, sans-serif;
+                      background: #f2f4f7;
+                      color: #263238;
+                      text-align: center;
+                      padding: 50px 20px;
+                  }
+                  main {
+                      max-width: 750px;
+                      margin: auto;
+                      padding: 35px;
+                      background: white;
+                      border-radius: 12px;
+                  }
+                  h1 { color: #176b45; }
+              </style>
+          </head>
+          <body>
+              <main>
+                  <h1>Projeto DevOps - IFPB</h1>
+                  <h2>Infraestrutura automatizada com Vagrant e Ansible</h2>
+                  <p>Servidor web configurado com Apache2.</p>
+                  <p>Ambiente composto por servidores de arquivos, banco de dados,
+                  aplicação e máquina cliente.</p>
+                  <h3>Integrante</h3>
+                  <p>Emanuel Augusto Correia de Souza</p>
+                  <p>Matrícula: INFORMAR NÚMERO COMPLETO</p>
+                  <hr>
+                  <p>Instituto Federal da Paraíba - IFPB</p>
+                  <p>Projeto de DevOps - 2026.2</p>
+              </main>
+          </body>
+          </html>
+
+    - name: Habilitar e iniciar Apache2
+      ansible.builtin.service:
+        name: apache2
+        enabled: true
+        state: started
+
+    - name: Garantir diretorio de montagem NFS
+      ansible.builtin.file:
+        path: /var/nfs
+        state: directory
+
+    - name: Configurar mapa mestre do autofs
+      ansible.builtin.lineinfile:
+        path: /etc/auto.master
+        line: '/- /etc/auto.nfs --timeout=60'
+        state: present
+      notify: Reiniciar autofs
+
+    - name: Configurar montagem NFS do ARQ
+      ansible.builtin.copy:
+        dest: /etc/auto.nfs
+        content: '/var/nfs -fstype=nfs,rw,sync 192.168.56.129:/dados/nfs'
+        owner: root
+        group: root
+        mode: '0644'
+      notify: Reiniciar autofs
+
+    - name: Habilitar e iniciar autofs
+      ansible.builtin.service:
+        name: autofs
+        enabled: true
+        state: started
+
+  handlers:
+    - name: Reiniciar autofs
+      ansible.builtin.service:
+        name: autofs
+        state: restarted

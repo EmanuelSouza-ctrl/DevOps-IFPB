@@ -1,0 +1,60 @@
+---
+- name: Configurar maquina cliente CLI
+  hosts: cli
+  become: true
+
+  tasks:
+    - name: Instalar Firefox ESR, X11 e autofs
+      ansible.builtin.apt:
+        name:
+          - firefox-esr
+          - xauth
+          - autofs
+          - x11-apps
+        state: present
+        update_cache: true
+
+    - name: Habilitar encaminhamento X11 no SSH
+      ansible.builtin.lineinfile:
+        path: /etc/ssh/sshd_config
+        regexp: '^#?X11Forwarding'
+        line: 'X11Forwarding yes'
+      notify: Reiniciar SSH
+
+    - name: Configurar mapa mestre do autofs
+      ansible.builtin.lineinfile:
+        path: /etc/auto.master
+        line: '/- /etc/auto.nfs --timeout=60'
+        state: present
+      notify: Reiniciar autofs
+
+    - name: Garantir diretorio de montagem NFS
+      ansible.builtin.file:
+        path: /var/nfs
+        state: directory
+
+    - name: Configurar montagem NFS do ARQ
+      ansible.builtin.copy:
+        dest: /etc/auto.nfs
+        content: '/var/nfs -fstype=nfs,rw,sync 192.168.56.129:/dados/nfs'
+        owner: root
+        group: root
+        mode: '0644'
+      notify: Reiniciar autofs
+
+    - name: Habilitar e iniciar autofs
+      ansible.builtin.service:
+        name: autofs
+        enabled: true
+        state: started
+
+  handlers:
+    - name: Reiniciar SSH
+      ansible.builtin.service:
+        name: ssh
+        state: restarted
+
+    - name: Reiniciar autofs
+      ansible.builtin.service:
+        name: autofs
+        state: restarted

@@ -1,0 +1,49 @@
+---
+- name: Configuracao basica de todos os servidores
+  hosts: todos
+  become: true
+
+  tasks:
+    - name: Atualizar lista de pacotes
+      ansible.builtin.apt:
+        update_cache: true
+
+    - name: Atualizar pacotes instalados
+      ansible.builtin.apt:
+        upgrade: dist
+
+    - name: Instalar Chrony e cliente NFS
+      ansible.builtin.apt:
+        name:
+          - chrony
+          - nfs-common
+        state: present
+
+    - name: Configurar servidor NTP
+      ansible.builtin.lineinfile:
+        path: /etc/chrony/chrony.conf
+        regexp: '^pool '
+        line: 'pool pool.ntp.br iburst'
+      notify: Reiniciar Chrony
+
+    - name: Configurar fuso horario
+      ansible.builtin.command:
+        cmd: timedatectl set-timezone America/Recife
+      changed_when: false
+
+    - name: Criar grupo ifpb
+      ansible.builtin.group:
+        name: ifpb
+        state: present
+
+    - name: Habilitar Chrony
+      ansible.builtin.service:
+        name: chrony
+        enabled: true
+        state: started
+
+  handlers:
+    - name: Reiniciar Chrony
+      ansible.builtin.service:
+        name: chrony
+        state: restarted

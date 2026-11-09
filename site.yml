@@ -1,0 +1,18 @@
+---
+- name: Configuracao basica de todos os servidores
+  ansible.builtin.import_playbook: playbooks/configuracao_basica.yml
+
+- name: Configuracao de usuarios e SSH
+  ansible.builtin.import_playbook: playbooks/usuarios_ssh.yml
+
+- name: Configuracao do servidor de arquivos
+  ansible.builtin.import_playbook: playbooks/servidor_arq.yml
+
+- name: Configuracao do banco de dados
+  ansible.builtin.import_playbook: playbooks/servidor_db.yml
+
+- name: Configuracao do servidor web
+  ansible.builtin.import_playbook: playbooks/servidor_app.yml
+
+- name: Configuracao da maquina cliente
+  ansible.builtin.import_playbook: playbooks/cliente_cli.yml

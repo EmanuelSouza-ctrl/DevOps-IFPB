@@ -1,0 +1,248 @@
+---
+- name: Configurar servidor de arquivos ARQ
+  hosts: arq
+  become: true
+
+  tasks:
+    - name: Instalar servicos DHCP, DNS, NFS e LVM
+      ansible.builtin.apt:
+        name:
+          - isc-dhcp-server
+          - bind9
+          - bind9-utils
+          - dnsutils
+          - nfs-kernel-server
+          - lvm2
+        state: present
+        update_cache: true
+
+    - name: Garantir montagem persistente do volume
+      ansible.builtin.mount:
+        path: /dados
+        src: UUID=09b83822-9e71-484e-8607-3be631c3e780
+        fstype: ext4
+        opts: defaults
+        state: mounted
+
+    - name: Criar grupo nfs-ifpb
+      ansible.builtin.group:
+        name: nfs-ifpb
+        gid: 2000
+        state: present
+
+    - name: Criar usuario nfs-ifpb
+      ansible.builtin.user:
+        name: nfs-ifpb
+        uid: 2000
+        group: nfs-ifpb
+        shell: /usr/sbin/nologin
+        create_home: false
+        state: present
+
+    - name: Configurar diretorio NFS
+      ansible.builtin.file:
+        path: /dados/nfs
+        state: directory
+        owner: nfs-ifpb
+        group: nfs-ifpb
+        mode: '0770'
+
+    - name: Configurar exportacao NFS
+      ansible.builtin.copy:
+        dest: /etc/exports
+        content: |
+          /dados/nfs 192.168.56.0/24(rw,sync,no_subtree_check,all_squash,anonuid=2000,anongid=2000)
+        owner: root
+        group: root
+        mode: '0644'
+      notify: Reiniciar NFS
+
+    - name: Configurar interface DHCP
+      ansible.builtin.copy:
+        dest: /etc/default/isc-dhcp-server
+        content: |
+          INTERFACESv4="eth1"
+          INTERFACESv6=""
+        owner: root
+        group: root
+        mode: '0644'
+      notify: Reiniciar DHCP
+
+    - name: Configurar servidor DHCP
+      ansible.builtin.copy:
+        dest: /etc/dhcp/dhcpd.conf
+        content: |
+          authoritative;
+
+          default-lease-time 180;
+          max-lease-time 3600;
+
+          option domain-name "devops.local";
+          option domain-name-servers 192.168.56.129;
+
+          subnet 192.168.56.0 netmask 255.255.255.0 {
+              range 192.168.56.50 192.168.56.100;
+              option routers 192.168.56.1;
+              option subnet-mask 255.255.255.0;
+              option broadcast-address 192.168.56.255;
+          }
+
+          host db {
+              hardware ethernet 08:00:27:28:E6:4E;
+              fixed-address 192.168.56.130;
+          }
+
+          host app {
+              hardware ethernet 08:00:27:E1:27:77;
+              fixed-address 192.168.56.131;
+          }
+        owner: root
+        group: root
+        mode: '0644'
+      notify: Reiniciar DHCP
+
+    - name: Configurar opcoes do DNS
+      ansible.builtin.copy:
+        dest: /etc/bind/named.conf.options
+        content: |
+          options {
+              directory "/var/cache/bind";
+
+              recursion yes;
+              allow-query { localhost; 192.168.56.0/24; };
+
+              forwarders {
+                  1.1.1.1;
+                  8.8.8.8;
+              };
+
+              dnssec-validation auto;
+
+              listen-on { 127.0.0.1; 192.168.56.129; };
+              listen-on-v6 { none; };
+          };
+        owner: root
+        group: bind
+        mode: '0644'
+      notify: Reiniciar DNS
+
+    - name: Configurar zonas DNS
+      ansible.builtin.copy:
+        dest: /etc/bind/named.conf.local
+        content: |
+          zone "devops.local" {
+              type master;
+              file "/etc/bind/db.devops.local";
+          };
+
+          zone "56.168.192.in-addr.arpa" {
+              type master;
+              file "/etc/bind/db.192.168.56";
+          };
+        owner: root
+        group: bind
+        mode: '0644'
+      notify: Reiniciar DNS
+
+    - name: Criar zona DNS direta
+      ansible.builtin.copy:
+        dest: /etc/bind/db.devops.local
+        content: |
+          $TTL 604800
+          @   IN  SOA arq.devops.local. admin.devops.local. (
+                  2026110801
+                  604800
+                  86400
+                  2419200
+                  604800 )
+
+          @       IN  NS  arq.devops.local.
+          arq     IN  A   192.168.56.129
+          db      IN  A   192.168.56.130
+          app     IN  A   192.168.56.131
+          cli     IN  A   192.168.56.50
+        owner: root
+        group: bind
+        mode: '0644'
+      notify: Reiniciar DNS
+
+    - name: Criar zona DNS reversa
+      ansible.builtin.copy:
+        dest: /etc/bind/db.192.168.56
+        content: |
+          $TTL 604800
+          @   IN  SOA arq.devops.local. admin.devops.local. (
+                  2026110801
+                  604800
+                  86400
+                  2419200
+                  604800 )
+
+          @   IN  NS  arq.devops.local.
+          129 IN  PTR arq.devops.local.
+          130 IN  PTR db.devops.local.
+          131 IN  PTR app.devops.local.
+          50  IN  PTR cli.devops.local.
+        owner: root
+        group: bind
+        mode: '0644'
+      notify: Reiniciar DNS
+
+    - name: Validar configuracao DHCP
+      ansible.builtin.command:
+        cmd: dhcpd -t -cf /etc/dhcp/dhcpd.conf
+      changed_when: false
+
+    - name: Validar configuracao DNS
+      ansible.builtin.command:
+        cmd: named-checkconf
+      changed_when: false
+
+    - name: Validar zona DNS direta
+      ansible.builtin.command:
+        cmd: named-checkzone devops.local /etc/bind/db.devops.local
+      changed_when: false
+
+    - name: Validar zona DNS reversa
+      ansible.builtin.command:
+        cmd: named-checkzone 56.168.192.in-addr.arpa /etc/bind/db.192.168.56
+      changed_when: false
+
+    - name: Aplicar exportacoes NFS
+      ansible.builtin.command:
+        cmd: exportfs -ra
+      changed_when: false
+
+    - name: Habilitar e iniciar DHCP
+      ansible.builtin.service:
+        name: isc-dhcp-server
+        enabled: true
+        state: started
+
+    - name: Habilitar e iniciar DNS
+      ansible.builtin.service:
+        name: named
+        enabled: true
+        state: started
+
+    - name: Habilitar e iniciar NFS
+      ansible.builtin.service:
+        name: nfs-server
+        enabled: true
+        state: started
+
+  handlers:
+    - name: Reiniciar DHCP
+      ansible.builtin.service:
+        name: isc-dhcp-server
+        state: restarted
+
+    - name: Reiniciar DNS
+      ansible.builtin.service:
+        name: named
+        state: restarted
+
+    - name: Reiniciar NFS
+      ansible.builtin.service:
+        name: nfs-server
+        state: restarted

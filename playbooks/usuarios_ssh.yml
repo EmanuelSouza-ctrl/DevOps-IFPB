@@ -1,0 +1,73 @@
+---
+- name: Configurar usuarios e seguranca SSH
+  hosts: todos
+  become: true
+
+  tasks:
+    - name: Criar usuario emanuel
+      ansible.builtin.user:
+        name: emanuel
+        groups: ifpb
+        append: true
+        shell: /bin/bash
+        create_home: true
+        state: present
+
+    - name: Garantir diretorio SSH do usuario
+      ansible.builtin.file:
+        path: /home/emanuel/.ssh
+        state: directory
+        owner: emanuel
+        group: emanuel
+        mode: '0700'
+
+    - name: Instalar chave publica do controlador
+      ansible.builtin.authorized_key:
+        user: emanuel
+        key: "{{ lookup('file', '../files/chave_emanuel.pub') }}"
+        state: present
+
+    - name: Configurar sudo para grupo ifpb
+      ansible.builtin.copy:
+        dest: /etc/sudoers.d/ifpb
+        content: "%ifpb ALL=(ALL:ALL) NOPASSWD: ALL\n"
+        owner: root
+        group: root
+        mode: '0440'
+        validate: 'visudo -cf %s'
+
+    - name: Impedir login SSH como root
+      ansible.builtin.lineinfile:
+        path: /etc/ssh/sshd_config
+        regexp: '^#?PermitRootLogin'
+        line: 'PermitRootLogin no'
+      notify: Reiniciar SSH
+
+    - name: Criar banner SSH
+      ansible.builtin.copy:
+        dest: /etc/ssh/banner
+        content: "Acesso apenas para pessoas com autorização expressa!!!\n"
+        owner: root
+        group: root
+        mode: '0644'
+
+    - name: Ativar banner SSH
+      ansible.builtin.lineinfile:
+        path: /etc/ssh/sshd_config
+        regexp: '^#?Banner'
+        line: 'Banner /etc/ssh/banner'
+      notify: Reiniciar SSH
+
+    - name: Desativar autenticacao SSH por senha
+      ansible.builtin.lineinfile:
+        path: /etc/ssh/sshd_config
+        regexp: '^#?PasswordAuthentication'
+        line: 'PasswordAuthentication no'
+      notify: Reiniciar SSH
+
+  handlers:
+    - name: Reiniciar SSH
+      ansible.builtin.service:
+        name: ssh
+        state: restarted
+
