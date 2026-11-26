@@ -8,6 +8,21 @@
 - name: Configuracao do servidor de arquivos
   ansible.builtin.import_playbook: playbooks/servidor_arq.yml
 
+- name: Atualizar DHCP e DNS nas maquinas clientes (db, app, cli)
+  hosts: db:app:cli
+  become: true
+  tasks:
+    - name: Impedir que a interface NAT sobrescreva DNS e dominio
+      ansible.builtin.blockinfile:
+        path: /etc/dhcp/dhclient.conf
+        block: |
+          supersede domain-name "emanuel.souza.devops";
+          supersede domain-name-servers 192.168.56.129;
+
+    - name: Renovar lease DHCP na interface privada eth1
+      ansible.builtin.shell: dhclient -r eth1 && dhclient eth1
+      ignore_errors: true
+
 - name: Configuracao do banco de dados
   ansible.builtin.import_playbook: playbooks/servidor_db.yml
 
