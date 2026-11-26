@@ -108,8 +108,11 @@ EOF
       ansible.playbook = "site.yml"
       ansible.install = true
       ansible.install_mode = "default"
-      ansible.inventory_path = "/tmp/hosts.ini"
-      ansible.raw_arguments = ["--ssh-common-args='-o StrictHostKeyChecking=no'"]
+      ansible.limit = "all"
+      ansible.raw_arguments = [
+        "-i", "/tmp/hosts.ini",
+        "--ssh-common-args='-o StrictHostKeyChecking=no'"
+      ]
     end
   end
 end
