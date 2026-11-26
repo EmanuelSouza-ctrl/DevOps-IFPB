@@ -1,5 +1,7 @@
 .vagrant/
 .ansible/
+*.vdi
+*.vmdk
 *.retry
 *.log
 __pycache__/
