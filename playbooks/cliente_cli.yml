@@ -36,7 +36,7 @@
     - name: Configurar montagem NFS do ARQ
       ansible.builtin.copy:
         dest: /etc/auto.nfs
-        content: '/var/nfs -fstype=nfs,rw,sync 192.168.56.129:/dados/nfs'
+        content: "/var/nfs -fstype=nfs,rw,sync arq.emanuel.souza.devops:/dados/nfs\n"
         owner: root
         group: root
         mode: '0644'
