@@ -76,7 +76,7 @@ Vagrant.configure("2") do |config|
   end
 
   # ==========================================
-  # CLI - MÁQUINA CLIENTE (DHCP dinâmico)
+  # CLI - MAQUINA CLIENTE (DHCP dinamico)
   # ==========================================
   config.vm.define "cli" do |cli|
     cli.vm.hostname = "cli.emanuel.souza.devops"
@@ -97,6 +97,4 @@ Vagrant.configure("2") do |config|
       }
     end
   end
-end
-
 end
