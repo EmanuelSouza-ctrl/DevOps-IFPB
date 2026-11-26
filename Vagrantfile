@@ -22,6 +22,7 @@ Vagrant.configure("2") do |config|
   config.vm.provider "virtualbox" do |vb|
     vb.linked_clone = true
     vb.check_guest_additions = false
+    vb.customize ["modifyvm", :id, "--paravirtprovider", "kvm"]
   end
 
   # ==========================================
