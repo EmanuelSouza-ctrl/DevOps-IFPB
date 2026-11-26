@@ -4,27 +4,28 @@
   become: true
 
   tasks:
-    - name: Criar usuario emanuel
+    - name: Criar usuario emanuel e gerar seu par de chaves SSH
       ansible.builtin.user:
         name: emanuel
         groups: ifpb
         append: true
         shell: /bin/bash
         create_home: true
+        generate_ssh_key: true
+        ssh_key_type: ed25519
+        ssh_key_file: .ssh/id_ed25519
         state: present
 
-    - name: Garantir diretorio SSH do usuario
-      ansible.builtin.file:
-        path: /home/emanuel/.ssh
-        state: directory
-        owner: emanuel
-        group: emanuel
-        mode: '0700'
+    - name: Ler a chave publica gerada no host cli
+      ansible.builtin.slurp:
+        src: /home/emanuel/.ssh/id_ed25519.pub
+      register: emanuel_pub_key
+      when: inventory_hostname == 'cli'
 
-    - name: Instalar chave publica do controlador
-      ansible.builtin.authorized_key:
+    - name: Autorizar a chave publica do usuario emanuel em todas as maquinas
+      ansible.posix.authorized_key:
         user: emanuel
-        key: "{{ lookup('file', '../files/chave_emanuel.pub') }}"
+        key: "{{ hostvars['cli']['emanuel_pub_key']['content'] | b64decode }}"
         state: present
 
     - name: Configurar sudo para grupo ifpb
@@ -36,13 +37,6 @@
         mode: '0440'
         validate: 'visudo -cf %s'
 
-    - name: Impedir login SSH como root
-      ansible.builtin.lineinfile:
-        path: /etc/ssh/sshd_config
-        regexp: '^#?PermitRootLogin'
-        line: 'PermitRootLogin no'
-      notify: Reiniciar SSH
-
     - name: Criar banner SSH
       ansible.builtin.copy:
         dest: /etc/ssh/banner
@@ -51,18 +45,17 @@
         group: root
         mode: '0644'
 
-    - name: Ativar banner SSH
+    - name: Configurar diretivas de seguranca no sshd_config
       ansible.builtin.lineinfile:
         path: /etc/ssh/sshd_config
-        regexp: '^#?Banner'
-        line: 'Banner /etc/ssh/banner'
-      notify: Reiniciar SSH
-
-    - name: Desativar autenticacao SSH por senha
-      ansible.builtin.lineinfile:
-        path: /etc/ssh/sshd_config
-        regexp: '^#?PasswordAuthentication'
-        line: 'PasswordAuthentication no'
+        regexp: "{{ item.regexp }}"
+        line: "{{ item.line }}"
+      loop:
+        - { regexp: '^#?PubkeyAuthentication', line: 'PubkeyAuthentication yes' }
+        - { regexp: '^#?PasswordAuthentication', line: 'PasswordAuthentication no' }
+        - { regexp: '^#?PermitRootLogin', line: 'PermitRootLogin no' }
+        - { regexp: '^#?AllowGroups', line: 'AllowGroups vagrant ifpb' }
+        - { regexp: '^#?Banner', line: 'Banner /etc/ssh/banner' }
       notify: Reiniciar SSH
 
   handlers:
@@ -70,4 +63,3 @@
       ansible.builtin.service:
         name: ssh
         state: restarted
-
