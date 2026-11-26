@@ -1,7 +1,6 @@
 Vagrant.configure("2") do |config|
   config.vm.box = "debian/bookworm64"
   config.vm.boot_timeout = 600
-  config.ssh.insert_key = false
 
   # ==========================================
   # DESATIVAR DHCP DO VIRTUALBOX
@@ -88,13 +87,29 @@ Vagrant.configure("2") do |config|
       vb.cpus = 1
     end
 
+    cli.vm.provision "shell", inline: <<-SHELL
+      mkdir -p /home/vagrant/.ssh
+      for m in arq db app; do
+        cp "/vagrant/.vagrant/machines/$m/virtualbox/private_key" "/home/vagrant/.ssh/${m}_key"
+        chmod 600 "/home/vagrant/.ssh/${m}_key"
+      done
+      chown -R vagrant:vagrant /home/vagrant/.ssh
+
+      cat << 'EOF' > /tmp/hosts.ini
+[todos]
+arq ansible_host=10.0.2.2 ansible_port=2222 ansible_user=vagrant ansible_ssh_private_key_file=/home/vagrant/.ssh/arq_key
+db  ansible_host=10.0.2.2 ansible_port=2200 ansible_user=vagrant ansible_ssh_private_key_file=/home/vagrant/.ssh/db_key
+app ansible_host=10.0.2.2 ansible_port=2201 ansible_user=vagrant ansible_ssh_private_key_file=/home/vagrant/.ssh/app_key
+cli ansible_connection=local
+EOF
+    SHELL
+
     cli.vm.provision "ansible_local" do |ansible|
       ansible.playbook = "site.yml"
       ansible.install = true
       ansible.install_mode = "default"
-      ansible.groups = {
-        "todos" => ["arq", "db", "app", "cli"]
-      }
+      ansible.inventory_path = "/tmp/hosts.ini"
+      ansible.raw_arguments = ["--ssh-common-args='-o StrictHostKeyChecking=no'"]
     end
   end
 end
