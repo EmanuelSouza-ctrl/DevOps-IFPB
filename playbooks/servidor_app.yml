@@ -52,7 +52,7 @@
                   aplicação e máquina cliente.</p>
                   <h3>Integrante</h3>
                   <p>Emanuel Augusto Correia de Souza</p>
-                  <p>Matrícula: INFORMAR NÚMERO COMPLETO</p>
+                  <p>Matrícula: 20232380029</p>
                   <hr>
                   <p>Instituto Federal da Paraíba - IFPB</p>
                   <p>Projeto de DevOps - 2026.2</p>
@@ -81,7 +81,7 @@
     - name: Configurar montagem NFS do ARQ
       ansible.builtin.copy:
         dest: /etc/auto.nfs
-        content: '/var/nfs -fstype=nfs,rw,sync 192.168.56.129:/dados/nfs'
+        content: "/var/nfs -fstype=nfs,rw,sync arq.emanuel.souza.devops:/dados/nfs\n"
         owner: root
         group: root
         mode: '0644'
