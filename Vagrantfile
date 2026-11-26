@@ -91,7 +91,7 @@ Vagrant.configure("2") do |config|
     cli.vm.provision "ansible_local" do |ansible|
       ansible.playbook = "site.yml"
       ansible.install = true
-      ansible.install_mode = "pip"
+      ansible.install_mode = "default"
       ansible.groups = {
         "todos" => ["arq", "db", "app", "cli"]
       }
