@@ -2,7 +2,9 @@ Vagrant.configure("2") do |config|
   config.vm.box = "debian/bookworm64"
   config.vm.boot_timeout = 600
 
-  # DESATIVAR DHCP DO VIRTUALBOX
+  # ==========================================
+  # DESATIVAR DHCP DO VIRTUALBOX E EVITAR COLISAO DE BOOT
+  # ==========================================
   config.trigger.before :up do |trigger|
     trigger.name = "Desativar DHCP do VirtualBox"
     trigger.ruby do |env, machine|
@@ -14,6 +16,7 @@ Vagrant.configure("2") do |config|
         system('VBoxManage dhcpserver modify --netname HostInterfaceNetworking-vboxnet0 --disable >/dev/null 2>&1 || true')
         system('VBoxManage dhcpserver remove --netname HostInterfaceNetworking-vboxnet0 >/dev/null 2>&1 || true')
       end
+      sleep 5
     end
   end
 
@@ -23,7 +26,9 @@ Vagrant.configure("2") do |config|
     vb.customize ["modifyvm", :id, "--paravirtprovider", "kvm"]
   end
 
+  # ==========================================
   # ARQ - SERVIDOR DE ARQUIVOS, DHCP E DNS
+  # ==========================================
   config.vm.define "arq" do |arq|
     arq.vm.hostname = "arq.emanuel.souza.devops"
     arq.vm.network "private_network", ip: "192.168.56.129"
@@ -43,7 +48,9 @@ Vagrant.configure("2") do |config|
     end
   end
 
+  # ==========================================
   # DB - SERVIDOR DE BANCO DE DADOS (DHCP via MAC)
+  # ==========================================
   config.vm.define "db" do |db|
     db.vm.hostname = "db.emanuel.souza.devops"
     db.vm.network "private_network", type: "dhcp", mac: "080027000030"
@@ -55,7 +62,9 @@ Vagrant.configure("2") do |config|
     end
   end
 
+  # ==========================================
   # APP - SERVIDOR WEB (DHCP via MAC)
+  # ==========================================
   config.vm.define "app" do |app|
     app.vm.hostname = "app.emanuel.souza.devops"
     app.vm.network "private_network", type: "dhcp", mac: "080027000031"
@@ -67,7 +76,9 @@ Vagrant.configure("2") do |config|
     end
   end
 
+  # ==========================================
   # CLI - MAQUINA CLIENTE (DHCP dinamico)
+  # ==========================================
   config.vm.define "cli" do |cli|
     cli.vm.hostname = "cli.emanuel.souza.devops"
     cli.vm.network "private_network", type: "dhcp"
@@ -79,6 +90,9 @@ Vagrant.configure("2") do |config|
     end
 
     cli.vm.provision "shell", inline: <<-SHELL
+      mkdir -p /etc/ansible
+      cp /vagrant/ansible.cfg /etc/ansible/ansible.cfg
+
       mkdir -p /home/vagrant/.ssh
       for m in arq db app; do
         cp "/vagrant/.vagrant/machines/$m/virtualbox/private_key" "/home/vagrant/.ssh/${m}_key"
